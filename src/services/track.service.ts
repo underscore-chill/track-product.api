@@ -1,11 +1,12 @@
 import { HttpStatus, Injectable, Scope } from '@nestjs/common';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path/posix';
+import { fileConfig } from 'src/common/config';
 import { ServiceResponse, ProductDto } from 'src/models/dto';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TrackService {
-  private productsFilePath = resolve(__dirname, '../data/products.json');
+  private productsFilePath = resolve(fileConfig.productFilePath);
 
   async findProduct(
     trackingCode: string,

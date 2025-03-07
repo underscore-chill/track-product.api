@@ -2,11 +2,12 @@ import { HttpStatus, Injectable, Scope } from '@nestjs/common';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve } from 'path';
 import { ContactRequest, ProductDto, ServiceResponse } from '../models/dto';
+import { fileConfig } from 'src/common/config';
 
 @Injectable({ scope: Scope.REQUEST })
 export class AdminService {
-  private productsFilePath = resolve(__dirname, '../../data/products.json');
-  private contactsFilePath = resolve(__dirname, '../../data/contacts.json');
+  private productsFilePath = resolve(fileConfig.productFilePath);
+  private contactsFilePath = resolve(fileConfig.contactsFilPath);
 
   async addProduct(product: ProductDto): Promise<ServiceResponse<ProductDto>> {
     const products: ProductDto[] = JSON.parse(

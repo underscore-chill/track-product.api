@@ -7,10 +7,11 @@ import {
 import { Request, Response, NextFunction } from 'express';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path/posix';
+import { fileConfig } from 'src/common/config';
 
 @Injectable({ scope: Scope.REQUEST })
 export class AuthMiddleware implements NestMiddleware {
-  private adminFilePath = resolve(__dirname, '../data/admin.json');
+  private adminFilePath = resolve(fileConfig.adminFilePath);
 
   async use(req: Request, res: Response, next: NextFunction) {
     const data = JSON.parse(await readFile(this.adminFilePath, 'utf-8'));

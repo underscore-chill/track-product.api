@@ -2,14 +2,15 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { readFile, writeFile } from 'fs/promises';
 import { ContactRequest, ProductDto, ServiceResponse } from './models/dto';
 import { resolve } from 'path/posix';
+import { fileConfig } from './common/config';
 
 @Injectable()
 export class AppService {
-  private adminFilePath = resolve(__dirname, '../data/admin.json');
-  private contactsFilePath = resolve(__dirname, '../data/contacts.json');
+  private adminFilePath = resolve(fileConfig.adminFilePath);
+  private contactsFilePath = resolve(fileConfig.contactsFilPath);
 
   getHello(): string {
-    return 'Hello World!';
+    return 'See way delivery api!';
   }
 
   async validateAdmin(
