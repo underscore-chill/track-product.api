@@ -7,24 +7,34 @@ export type ProductDocument = Product & Document;
 export class Product {
   @Prop({ required: true })
   id: string;
+
   @Prop({ required: true })
   name: string;
-  @Prop({ required: true })
+
   @Prop({ required: true })
   description: string;
+
   @Prop({ required: true })
   senderName: string;
+
   @Prop({ required: true })
   receiverName: string;
+
+  @Prop({ required: true })
   origin: string;
+
   @Prop({ required: true })
   destination: string;
+
   @Prop({ required: true })
   departureDate: string;
+
   @Prop({ required: true })
   arrivalDate: string;
+
   @Prop({ required: true })
   status: string;
+
   @Prop({ required: true })
   trackingId: string;
 }

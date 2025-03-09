@@ -21,8 +21,8 @@ export class AdminService {
   }
 
   private async initializeAdmin() {
-    const email = 'admin@email.com'; // Default admin email
-    const password = 'Abcd@1234'; // Default admin password (hash this in production)
+    const email = 'admin@email.com';
+    const password = 'Abcd@1234';
 
     const existingAdmin = await this.adminModel.findOne({ email }).exec();
     if (!existingAdmin) {
@@ -48,7 +48,6 @@ export class AdminService {
     product.id = `TRK${Math.floor(10000 + Math.random() * 90000)}`;
     const newProduct = new this.productModel(product);
     await newProduct.save();
-
     return {
       message: 'Product added',
       success: true,
