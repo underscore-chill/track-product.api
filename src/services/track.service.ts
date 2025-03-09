@@ -1,37 +1,39 @@
-import { HttpStatus, Injectable, Scope } from '@nestjs/common';
-import { readFile } from 'fs/promises';
-import { resolve } from 'path/posix';
-import { fileConfig } from 'src/common/config';
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Product, ProductDocument } from 'src/admin/schemas/product.schema';
 import { ServiceResponse, ProductDto } from 'src/models/dto';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class TrackService {
-  private productsFilePath = resolve(fileConfig.productFilePath);
+  constructor(
+    @InjectModel(Product.name)
+    private readonly productModel: Model<ProductDocument>,
+  ) {}
 
   async findProduct(
     trackingCode: string,
     productId: string,
   ): Promise<ServiceResponse<ProductDto>> {
-    const products: ProductDto[] = JSON.parse(
-      await readFile(this.productsFilePath, 'utf-8'),
-    );
-    const product = products.find(
-      (p) => p.trackingId === trackingCode || p.id === productId,
-    );
+    const product = await this.productModel
+      .findOne({
+        $or: [{ trackingId: trackingCode }, { id: productId }],
+      })
+      .lean();
+
     if (!product) {
-      const response: ServiceResponse<ProductDto> = {
+      return {
         message: 'Product not found',
         success: false,
         status: HttpStatus.NOT_FOUND,
       };
-      return response;
     }
-    const response: ServiceResponse<ProductDto> = {
+
+    return {
       message: 'Successful',
       success: true,
       status: HttpStatus.OK,
       data: product,
     };
-    return response;
   }
 }

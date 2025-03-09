@@ -1,173 +1,150 @@
-import { HttpStatus, Injectable, Scope } from '@nestjs/common';
-import { readFile, writeFile } from 'fs/promises';
-import { resolve } from 'path';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { model, Model } from 'mongoose';
 import { ContactRequest, ProductDto, ServiceResponse } from '../models/dto';
-import { fileConfig } from 'src/common/config';
+import { Product, ProductDocument } from 'src/admin/schemas/product.schema';
+import { Contact, ContactDocument } from 'src/admin/schemas/contact.schema';
+import { Admin, AdminDocument } from 'src/admin/schemas/admin.shema';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class AdminService {
-  private productsFilePath = resolve(fileConfig.productFilePath);
-  private contactsFilePath = resolve(fileConfig.contactsFilPath);
+  constructor(
+    @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(Contact.name) private contactModel: Model<ContactDocument>,
+    @InjectModel(Admin.name) private readonly adminModel: Model<AdminDocument>,
+  ) {}
+
+  private readonly logger = new Logger(AdminService.name);
+
+  async onModuleInit() {
+    await this.initializeAdmin();
+  }
+
+  private async initializeAdmin() {
+    const email = 'admin@email.com'; // Default admin email
+    const password = 'Abcd@1234'; // Default admin password (hash this in production)
+
+    const existingAdmin = await this.adminModel.findOne({ email }).exec();
+    if (!existingAdmin) {
+      await this.adminModel.create({ email, password });
+      this.logger.log('Admin account created successfully.');
+    } else {
+      this.logger.log('Admin account already exists.');
+    }
+  }
 
   async addProduct(product: ProductDto): Promise<ServiceResponse<ProductDto>> {
-    const products: ProductDto[] = JSON.parse(
-      await readFile(this.productsFilePath, 'utf-8'),
-    );
-
-    const productExist = products.find(
-      (x) => x.id == product.id || x.trackingId == product.trackingId,
-    );
+    const productExist = await this.productModel.findOne({
+      $or: [{ id: product.id }, { trackingId: product.trackingId }],
+    });
     if (productExist) {
-      const response: ServiceResponse<ProductDto> = {
-        message: 'Product exist',
+      return {
+        message: 'Product exists',
         success: false,
         status: HttpStatus.CONFLICT,
       };
-      return response;
     }
 
-    if (products) {
-      const randomNum = Math.floor(10000 + Math.random() * 90000);
-      product.id = `TRK${randomNum}`;
+    product.id = `TRK${Math.floor(10000 + Math.random() * 90000)}`;
+    const newProduct = new this.productModel(product);
+    await newProduct.save();
 
-      products.push(product);
-    }
-
-    await writeFile(this.productsFilePath, JSON.stringify(products, null, 2));
-    const response: ServiceResponse<ProductDto> = {
+    return {
       message: 'Product added',
       success: true,
-      data: product,
+      data: newProduct,
       status: HttpStatus.CREATED,
     };
-    return response;
   }
 
   async updateProduct(
     productId: string,
     product: ProductDto,
   ): Promise<ServiceResponse<ProductDto>> {
-    let products: ProductDto[] = JSON.parse(
-      await readFile(this.productsFilePath, 'utf-8'),
+    const updatedProduct = await this.productModel.findOneAndUpdate(
+      { id: productId },
+      product,
+      { new: true },
     );
 
-    let productExist = products.find((x) => x.id == productId);
-    if (!productExist) {
-      const response: ServiceResponse<ProductDto> = {
+    if (!updatedProduct) {
+      return {
         message: 'Product not found',
         success: false,
         status: HttpStatus.NOT_FOUND,
       };
-      return response;
     }
-
-    products = products.filter((x) => x.id != productId);
-    products.push(product);
-
-    await writeFile(this.productsFilePath, JSON.stringify(products, null, 2));
-    const response: ServiceResponse<ProductDto> = {
-      message: 'Product added',
+    return {
+      message: 'Product updated',
       success: true,
-      data: product,
-      status: HttpStatus.CREATED,
+      data: updatedProduct,
+      status: HttpStatus.OK,
     };
-    return response;
   }
 
   async deleteProduct(productId: string): Promise<ServiceResponse> {
-    const products = await this.getAllProducts();
-    const product = products.find(
-      (p) => p.trackingId === productId || p.id === productId,
-    );
-    if (!product) {
-      const response: ServiceResponse = {
+    const deleted = await this.productModel.findOneAndDelete({
+      $or: [{ id: productId }, { trackingId: productId }],
+    });
+    if (!deleted) {
+      return {
         message: 'Product not found',
         success: false,
         status: HttpStatus.NOT_FOUND,
       };
-      return response;
     }
-    const newProducts = products.filter((x) => x.id != productId);
-    await writeFile(
-      this.productsFilePath,
-      JSON.stringify(newProducts, null, 2),
-    );
-    const response: ServiceResponse = {
-      message: 'Product deleted',
-      success: true,
-      status: HttpStatus.OK,
-    };
-    return response;
+    return { message: 'Product deleted', success: true, status: HttpStatus.OK };
   }
 
   async findProduct(
     trackingCode: string,
     productId: string,
   ): Promise<ServiceResponse<ProductDto>> {
-    const products: ProductDto[] = JSON.parse(
-      await readFile(this.productsFilePath, 'utf-8'),
-    );
-    const product = products.find(
-      (p) => p.trackingId === trackingCode || p.id === productId,
-    );
+    const product = await this.productModel.findOne({
+      $or: [{ trackingId: trackingCode }, { id: productId }],
+    });
     if (!product) {
-      const response: ServiceResponse<ProductDto> = {
+      return {
         message: 'Product not found',
         success: false,
         status: HttpStatus.NOT_FOUND,
       };
-      return response;
     }
-    const response: ServiceResponse<ProductDto> = {
+    return {
       message: 'Successful',
       success: true,
       status: HttpStatus.OK,
       data: product,
     };
-    return response;
   }
 
   async getAllProducts(): Promise<ProductDto[]> {
-    return JSON.parse(await readFile(this.productsFilePath, 'utf-8'));
+    return this.productModel.find().exec();
   }
 
   async getAllContacts(): Promise<ContactRequest[]> {
-    return JSON.parse(await readFile(this.contactsFilePath, 'utf-8'));
+    return this.contactModel.find().exec();
   }
 
   async contact(model: ContactRequest): Promise<ServiceResponse> {
-    let data: ContactRequest[] = JSON.parse(
-      await readFile(this.contactsFilePath, 'utf-8'),
-    );
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-    model.id = `contact-${randomNum}`;
-    if (data) {
-      data.push(model);
-    } else {
-      data = [{ ...model }];
-    }
-    await writeFile(this.contactsFilePath, JSON.stringify(data, null, 2));
-
-    const response: ServiceResponse = {
+    model.id = `contact-${Math.floor(10000 + Math.random() * 90000)}`;
+    await new this.contactModel(model).save();
+    return {
       message: 'Thanks for contacting us',
       success: true,
       status: HttpStatus.CREATED,
     };
-    return response;
   }
 
   async deleteContact(id: string): Promise<ServiceResponse> {
-    let data: ContactRequest[] = JSON.parse(
-      await readFile(this.contactsFilePath, 'utf-8'),
-    );
-    data = data.filter((x) => x.id != id);
-    await writeFile(this.contactsFilePath, JSON.stringify(data, null, 2));
-
-    const response: ServiceResponse = {
-      message: 'Thanks for contacting us',
-      success: true,
-      status: HttpStatus.CREATED,
-    };
-    return response;
+    const deleted = await this.contactModel.findOneAndDelete({ id });
+    if (!deleted) {
+      return {
+        message: 'Contact not found',
+        success: false,
+        status: HttpStatus.NOT_FOUND,
+      };
+    }
+    return { message: 'Contact deleted', success: true, status: HttpStatus.OK };
   }
 }

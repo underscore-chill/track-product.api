@@ -1,25 +1,36 @@
 import {
   Injectable,
   NestMiddleware,
-  Scope,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { readFile } from 'fs/promises';
-import { resolve } from 'path/posix';
-import { fileConfig } from 'src/common/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Admin, AdminDocument } from 'src/admin/schemas/admin.shema';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class AuthMiddleware implements NestMiddleware {
-  private adminFilePath = resolve(fileConfig.adminFilePath);
+  constructor(
+    @InjectModel(Admin.name) private readonly adminModel: Model<AdminDocument>,
+  ) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
-    const data = JSON.parse(await readFile(this.adminFilePath, 'utf-8'));
     const authHeader = req.headers.authorization;
-    const token = `${data.email}${data.password}tracking-product`;
-    if (authHeader != token) {
+    if (!authHeader) {
+      throw new UnauthorizedException('Authorization token missing');
+    }
+
+    // Find the admin user (assuming only one admin exists)
+    const admin = await this.adminModel.findOne().lean();
+    if (!admin) {
+      throw new UnauthorizedException('Admin not found');
+    }
+
+    const expectedToken = `${admin.email}${admin.password}tracking-product`;
+    if (authHeader !== expectedToken) {
       throw new UnauthorizedException('Invalid token');
     }
+
     next();
   }
 }

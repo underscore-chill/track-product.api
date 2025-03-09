@@ -1,75 +1,64 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { readFile, writeFile } from 'fs/promises';
-import { ContactRequest, ProductDto, ServiceResponse } from './models/dto';
-import { resolve } from 'path/posix';
-import { fileConfig } from './common/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { ContactRequest, ServiceResponse } from './models/dto';
+import { Admin, AdminDocument } from './admin/schemas/admin.shema';
+import { Contact, ContactDocument } from './admin/schemas/contact.schema';
 
 @Injectable()
 export class AppService {
-  private adminFilePath = resolve(fileConfig.adminFilePath);
-  private contactsFilePath = resolve(fileConfig.contactsFilPath);
+  constructor(
+    @InjectModel(Admin.name) private readonly adminModel: Model<AdminDocument>,
+    @InjectModel(Contact.name)
+    private readonly contactModel: Model<ContactDocument>,
+  ) {}
 
   getHello(): string {
-    return 'See way delivery api!';
+    return 'See way delivery API!';
   }
 
   async validateAdmin(
     email: string,
     password: string,
   ): Promise<ServiceResponse<{ token: string }>> {
-    const data = JSON.parse(await readFile(this.adminFilePath, 'utf-8'));
-    if (email?.toLowerCase() === data.email && password === data.password) {
-      const token = `${data.email}${data.password}tracking-product`;
+    const admin = await this.adminModel.findOne({ email }).lean();
 
-      const response: ServiceResponse<{ token: string }> = {
+    if (admin && admin.password === password) {
+      const token = `${admin.email}${admin.password}tracking-product`;
+
+      return {
         message: 'Login successful',
         success: true,
         status: HttpStatus.OK,
         data: { token },
       };
-      return response;
     }
-    const response: ServiceResponse<{ token: string }> = {
+
+    return {
       message: 'Invalid credentials',
       success: false,
       status: HttpStatus.UNAUTHORIZED,
     };
-    return response;
   }
 
   async contact(model: ContactRequest): Promise<ServiceResponse> {
-    let data: ContactRequest[] = JSON.parse(
-      await readFile(this.contactsFilePath, 'utf-8'),
-    );
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-    model.id = `contact-${randomNum}`;
-    if (data) {
-      data.push(model);
-    } else {
-      data = [{ ...model }];
-    }
-    await writeFile(this.contactsFilePath, JSON.stringify(data, null, 2));
+    model.id = `CONTACT${Math.floor(10000 + Math.random() * 90000)}`;
+    await this.contactModel.create(model);
 
-    const response: ServiceResponse = {
+    return {
       message: 'Thanks for contacting us',
       success: true,
       status: HttpStatus.CREATED,
     };
-    return response;
   }
 
   async deleteContact(id: string): Promise<ServiceResponse> {
-    let data: ContactRequest[] = JSON.parse(
-      await readFile(this.contactsFilePath, 'utf-8'),
-    );
-    data = data.filter((x) => x.id != id);
-    await writeFile(this.contactsFilePath, JSON.stringify(data, null, 2));
+    await this.contactModel.deleteOne({ _id: id });
 
-    const response: ServiceResponse = {
-      message: 'Thanks for contacting us',
+    return {
+      message: 'Contact deleted successfully',
       success: true,
-      status: HttpStatus.CREATED,
+      status: HttpStatus.OK,
     };
-    return response;
   }
 }
